@@ -186,6 +186,8 @@ class OvnNbctl(OvsClient):
             params = [lswitch]
             self.run("acl-del", args=params)
 
+        # TODO: Don't try to process free-form output from `ovn-nbctl show`.
+        #       Ask for machine readable output, in JSON or CSV, instead.
         def show(self, lswitch=None):
             params = [lswitch] if lswitch else []
             stdout = StringIO()
