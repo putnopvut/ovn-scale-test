@@ -1,0 +1,68 @@
+---
+- name: Install OVN Prerequisites
+  yum: name={{item}} state=present
+  with_items:
+      - gcc
+      - make
+      - python-devel
+      - openssl-devel
+      - graphviz
+      - autoconf
+      - automake
+      - redhat-rpm-config
+      - rpm-build
+      - rpmdevtools
+      - bash-completion
+      - libtool
+      - groff
+      - libcap-ng-devel
+      - python-twisted-core
+      - selinux-policy-devel
+      - python-six
+      - desktop-file-utils
+      - git
+      - python-sphinx
+      - python-twisted-web
+      - python3-devel
+      - firewalld-filesystem
+
+- name: Clone OVS repository
+  git:
+    repo: 'https://github.com/openvswitch/ovs.git'
+    dest: '/git/ovs'
+    version: 'master'
+
+- name: Bootstrap OVS build
+  command: chdir=/git/ovs ./boot.sh
+
+- name: Run OVS configure script
+  command: chdir=/git/ovs ./configure
+
+- name: Build OVS RPMs
+  make:
+    chdir: /git/ovs
+    targe: rpm-fedora
+
+- name: Find built RPM files
+  find:
+    paths: /git/ovs
+    patterns: '*.rpm'
+    recurse: yes
+    register: built_rpms
+
+- name: Copy RPMs to temporary directory
+  copy:
+    remote_src: yes
+    src: {{item.path}}
+    dest: /tmp/rpms/
+  with_items: "{{built_rpms.files}}"
+
+# XXX Not sure if yum module does file globbing.
+- name: Install RPMs
+  yum: name=/tmp/rpms/{{item}} state=present
+  with_items:
+    - python*-openvswitch-2*x86_64.rpm
+    - openvswitch-2*x86_64.rpm
+    - openvswitch-ovn-common-2*x86_64.rpm
+    - openvswitch-ovn-host-2*x86_64.rpm
+    - openvswitch-ovn-central-2*x86_64.rpm

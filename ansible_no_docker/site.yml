@@ -1,0 +1,6 @@
+---
+- hosts:
+    - ovn-control
+  roles:
+    - rally_user
+    - ovn

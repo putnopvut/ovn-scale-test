@@ -1,0 +1,6 @@
+---
+- name: Create Deployment User
+  user:
+    name: rally
+    generate_ssh_key: yes
+
