@@ -1,30 +1,10 @@
 ---
+# Yes, I could use with_items to list all the packages, but that
+# results in yum being invoked individually for each item, and that
+# is SLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOWWWWWWWWWW
+# (honestly, this method is slow too, but not *as* slow)
 - name: Install OVN Prerequisites
-  yum: name={{item}} state=present
-  with_items:
-      - gcc
-      - make
-      - python-devel
-      - openssl-devel
-      - graphviz
-      - autoconf
-      - automake
-      - redhat-rpm-config
-      - rpm-build
-      - rpmdevtools
-      - bash-completion
-      - libtool
-      - groff
-      - libcap-ng-devel
-      - python-twisted-core
-      - selinux-policy-devel
-      - python-six
-      - desktop-file-utils
-      - git
-      - python-sphinx
-      - python-twisted-web
-      - python3-devel
-      - firewalld-filesystem
+  yum: name="gcc,make,python-devel,openssl,openssl-devel,graphviz,autoconf,automake,redhat-rpm-config,rpm-build,rpmdevtools,bash-completion,libtool,groff,libcap-ng-devel,python-twisted-core,selinux-policy-devel,python-six,desktop-file-utils,git,python-sphinx,python-twisted-web,firewalld-filesystem" state=present
 
 - name: Clone OVS repository
   git:
@@ -41,28 +21,45 @@
 - name: Build OVS RPMs
   make:
     chdir: /git/ovs
-    targe: rpm-fedora
+    target: rpm-fedora
 
 - name: Find built RPM files
   find:
     paths: /git/ovs
     patterns: '*.rpm'
     recurse: yes
-    register: built_rpms
+  register: built_rpms
+
+- name: Ensure temporary RPM directory is present
+  file:
+    path: /tmp/rpms
+    state: directory
 
 - name: Copy RPMs to temporary directory
   copy:
     remote_src: yes
-    src: {{item.path}}
+    src: "{{item.path}}"
     dest: /tmp/rpms/
   with_items: "{{built_rpms.files}}"
 
-# XXX Not sure if yum module does file globbing.
-- name: Install RPMs
-  yum: name=/tmp/rpms/{{item}} state=present
-  with_items:
-    - python*-openvswitch-2*x86_64.rpm
-    - openvswitch-2*x86_64.rpm
-    - openvswitch-ovn-common-2*x86_64.rpm
-    - openvswitch-ovn-host-2*x86_64.rpm
-    - openvswitch-ovn-central-2*x86_64.rpm
+# Using the "find" module might seem to make sense here, but it returns a dictionary
+# of values. Formatting this dictionary into a continuous string is probably possible,
+# but it is not obvious how to do it. Why do I want a continuous string? If you pass
+# the individual files to the "yum" module, then it runs yum once for each item
+# in turn. The "find" module does not return the files in any particular order.
+# This means that yum will run into dependency issues since you cannot put the
+# files in the proper order. By passing a single string to the "yum" module, it
+# is able to magically install the RPMs in the proper order and not run into
+# dependency issues.
+- name: Gather RPMs to actually install
+  shell: find /tmp/rpms \( -name 'python*-openvswitch-2*.rpm' -o -name 'openvswitch-2*.rpm' -o -name 'openvswitch-ovn-common-2*.rpm' -o -name 'openvswitch-ovn-host-2*.rpm' -o -name 'openvswitch-ovn-central-2*.rpm' \)
+  register: install_rpms
+
+- name: Format RPM names
+  set_fact:
+    new_list: "{{ install_rpms.stdout | replace('\n', ',') }}"
+
+- name: Install OVS RPMs
+  yum:
+    name: "{{new_list}}"
+    state: present
