@@ -1,0 +1,9 @@
+# Define variables here for OVS installation
+#
+# Define this if you want to use something other than
+# the default.
+# ovs_repo: 
+#
+# Define this if you want to use something other than
+# the default.
+# ovs_branch:

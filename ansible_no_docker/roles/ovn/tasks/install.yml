@@ -28,9 +28,9 @@
 
 - name: Clone OVS repository
   git:
-    repo: 'https://github.com/openvswitch/ovs.git'
+    repo: "{{ovs_repo}}"
     dest: '/git/ovs'
-    version: 'master'
+    version: "{{ovs_branch}}"
 
 - name: Bootstrap OVS build
   command: chdir=/git/ovs ./boot.sh
