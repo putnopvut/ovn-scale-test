@@ -1,2 +1,5 @@
 [ovn-control]
-# Add hosts to install OVN on.
+localhost
+wsfd-netdev23.ntdv.lab.eng.bos.redhat.com
+wsfd-netdev24.ntdv.lab.eng.bos.redhat.com
+wsfd-netdev25.ntdv.lab.eng.bos.redhat.com
