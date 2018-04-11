@@ -1,0 +1,93 @@
+- name: Install OVN Prerequisites
+  yum: name="gcc,make,python-devel,openssl,openssl-devel,graphviz,autoconf,automake,redhat-rpm-config,rpm-build,rpmdevtools,bash-completion,libtool,groff,libcap-ng-devel,python-twisted-core,selinux-policy-devel,python-six,desktop-file-utils,git,python-sphinx,python-twisted-web,firewalld-filesystem" state=present
+
+- name: Clone OVS repository
+  git:
+    repo: "{{ovs_repo}}"
+    dest: '/git/ovs'
+    version: "{{ovs_branch}}"
+  register: git_repo
+
+- block:
+  - name: Stop if git checkout has not changed
+    debug:
+      msg: "OVS git checkout has not changed. Exiting"
+  
+  - meta: end_play
+  when: not git_repo.changed
+
+# Nothing below will execute unless the git checkout has
+# changed.
+
+- name: Create Ansible Local Facts Directory
+  file: path=/etc/ansible/facts.d state=directory
+
+- name: Initiate Build Numbering
+  copy:
+    content: '{ "release":"1" }'
+    dest: "/etc/ansible/facts.d/builder.fact"
+    force: no
+ 
+- name: Get commit hash of HEAD
+  command: chdir=/git/ovs git rev-parse --short HEAD
+  register: git_hash
+
+- name: Bootstrap OVS build
+  command: chdir=/git/ovs ./boot.sh
+
+- name: Run OVS configure script
+  command: chdir=/git/ovs ./configure
+
+- name: Create spec files and source tarball
+  make:
+    chdir: /git/ovs
+    target: dist
+
+- name: Parse out Open vSwitch version from "configure.ac"
+  command: chdir=/git/ovs autoconf -t AC_INIT:'$2'
+  register: version
+
+- name: Set source directory for building
+  set_fact:
+    SOURCE: "/root/rpmbuild/SOURCES"
+
+- name: Ensure build directory is present
+  file:
+    name: "{{SOURCE}}"
+    state: directory
+
+- name: Copy source tarball to rpm dev tree
+  command: cp /git/ovs/openvswitch-{{version.stdout}}.tar.gz {{SOURCE}}
+
+- name: Unarchive openvswitch source tarball
+  unarchive:
+    src: "{{SOURCE}}/openvswitch-{{version.stdout}}.tar.gz"
+    dest: "{{SOURCE}}"
+    remote_src: yes
+
+- name: Update release number in spec files
+  lineinfile:
+    path: "{{SOURCE}}/openvswitch-{{version.stdout}}/rhel/openvswitch-fedora.spec"
+    regexp: '^Release:'
+    line: "Release: {{ ansible_local.builder.release }}_{{ ovs_branch }}_{{ git_hash.stdout }}"
+
+- name: Clear out old RPMs
+  file:
+    name: "/root/rpmbuild/RPMS/"
+    state: absent
+
+- name: Build OVN RPMs
+  command: rpmbuild -bb --without check rhel/openvswitch-fedora.spec
+  args:
+    chdir: "{{SOURCE}}/openvswitch-{{version.stdout}}"
+
+- name: Bump up Build Number
+  copy:
+    content: '{ "release":"{{ansible_local.builder.release|int+1}}" }'
+    dest: "/etc/ansible/facts.d/builder.fact"
+
+- name: Copy Built RPMs to local host
+  synchronize:
+    src: '/root/rpmbuild/RPMS'
+    dest: '/tmp/'
+    mode: pull
