@@ -42,7 +42,6 @@
   make:
     chdir: /git/ovs
     target: dist
-    params: "{{ ovs_make_options }}"
 
 - name: Parse out Open vSwitch version from "configure.ac"
   command: chdir=/git/ovs autoconf -t AC_INIT:'$2'
