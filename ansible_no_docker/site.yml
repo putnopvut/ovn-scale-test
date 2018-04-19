@@ -1,6 +1,11 @@
 ---
 - hosts:
-    - ovn-control
+    - ovn-builder
+  roles:
+    - { role: ovn, action: build }
+
+- hosts:
+    - ovn-node
   roles:
     - rally_user
-    - ovn
+    - { role: ovn, action: install }

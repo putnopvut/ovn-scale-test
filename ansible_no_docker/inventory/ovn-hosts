@@ -1,5 +1,8 @@
-[ovn-control]
-localhost
+[ovn-builder]
+wsfd-netdev30.ntdv.lab.eng.bos.redhat.com
+
+[ovn-node]
+wsfd-netdev30.ntdv.lab.eng.bos.redhat.com
 wsfd-netdev23.ntdv.lab.eng.bos.redhat.com
 wsfd-netdev24.ntdv.lab.eng.bos.redhat.com
 wsfd-netdev25.ntdv.lab.eng.bos.redhat.com

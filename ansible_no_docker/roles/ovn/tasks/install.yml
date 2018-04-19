@@ -1,59 +1,7 @@
----
-# Yes, I could use with_items to list all the packages, but that
-# results in yum being invoked individually for each item, and that
-# is SLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOWWWWWWWWWW
-# (honestly, this method is slow too, but not *as* slow)
-- name: Install OVN Prerequisites
-  yum: name="gcc,make,python-devel,openssl,openssl-devel,graphviz,autoconf,automake,redhat-rpm-config,rpm-build,rpmdevtools,bash-completion,libtool,groff,libcap-ng-devel,python-twisted-core,selinux-policy-devel,python-six,desktop-file-utils,git,python-sphinx,python-twisted-web,firewalld-filesystem" state=present
-
-- name: Clone OVS repository
-  git:
-    repo: "{{ovs_repo}}"
-    dest: '/git/ovs'
-    version: "{{ovs_branch}}"
-  register: git_repo
-
-- name: Bootstrap OVS build
-  command: chdir=/git/ovs ./boot.sh
-  when: git_repo.changed
-
-- name: Run OVS configure script
-  command: chdir=/git/ovs ./configure
-  when: git_repo.changed
-
-- name: Build OVS RPMs
-  make:
-    chdir: /git/ovs
-    target: rpm-fedora
-  when: git_repo.changed
-
-- name: Find built RPM files
-  find:
-    paths: /git/ovs
-    patterns: '*.rpm'
-    recurse: yes
-  register: built_rpms
-  when: git_repo.changed
-
-- name: Remove temporary RPM directory if present already
-  file:
-    path: /tmp/rpms/
-    state: absent
-  when: git_repo.changed
-
-- name: Ensure temporary RPM directory is present
-  file:
-    path: /tmp/rpms
-    state: directory
-  when: git_repo.changed
-
-- name: Copy RPMs to temporary directory
-  copy:
-    remote_src: yes
-    src: "{{item.path}}"
-    dest: /tmp/rpms/
-  with_items: "{{built_rpms.files}}"
-  when: git_repo.changed
+- name: Copy RPMs to OVN node
+  synchronize:
+    src: /tmp/RPMS
+    dest: /tmp/RPMS
 
 # Using the "find" module might seem to make sense here, but it returns a dictionary
 # of values. Formatting this dictionary into a continuous string is probably possible,
@@ -65,27 +13,14 @@
 # is able to magically install the RPMs in the proper order and not run into
 # dependency issues.
 - name: Gather RPMs to actually install
-  shell: find /tmp/rpms \( -name 'python*-openvswitch-2*.rpm' -o -name 'openvswitch-2*.rpm' -o -name 'openvswitch-ovn-common-2*.rpm' -o -name 'openvswitch-ovn-host-2*.rpm' -o -name 'openvswitch-ovn-central-2*.rpm' \)
+  shell: find /tmp/RPMS \( -name 'python*-openvswitch-2*.rpm' -o -name 'openvswitch-2*.rpm' -o -name 'openvswitch-ovn-common-2*.rpm' -o -name 'openvswitch-ovn-host-2*.rpm' -o -name 'openvswitch-ovn-central-2*.rpm' \)
   register: install_rpms
-  when: git_repo.changed
 
 - name: Format RPM names
   set_fact:
     new_list: "{{ install_rpms.stdout | replace('\n', ',') }}"
-  when: git_repo.changed
-
-# Since versions are not handled very well by this playbook, the easiest
-# way to deal with things is to remove previously installed OVS RPMs, then
-# install them again. This shouldn't be too wasteful since this will only
-# happen if we're installing different code anyway.
-- name: Remove previously installed OVS RPMs
-  yum:
-    name: "{{new_list}}"
-    state: absent
-  when: git_repo.changed
 
 - name: Install OVS RPMs
   yum:
     name: "{{new_list}}"
-    state: present
-  when: git_repo.changed
+    state: latest
