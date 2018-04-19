@@ -36,12 +36,13 @@
   command: chdir=/git/ovs ./boot.sh
 
 - name: Run OVS configure script
-  command: chdir=/git/ovs ./configure
+  command: chdir=/git/ovs ./configure "{{ ovs_configure_options }}"
 
 - name: Create spec files and source tarball
   make:
     chdir: /git/ovs
     target: dist
+    params: "{{ ovs_make_options }}"
 
 - name: Parse out Open vSwitch version from "configure.ac"
   command: chdir=/git/ovs autoconf -t AC_INIT:'$2'
