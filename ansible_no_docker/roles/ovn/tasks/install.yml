@@ -2,6 +2,7 @@
   synchronize:
     src: /tmp/RPMS
     dest: /tmp/RPMS
+  when: ansible_hostname != 'localhost'
 
 # Using the "find" module might seem to make sense here, but it returns a dictionary
 # of values. Formatting this dictionary into a continuous string is probably possible,
