@@ -1,7 +1,7 @@
 - name: Copy RPMs to OVN node
   synchronize:
     src: /tmp/RPMS
-    dest: /tmp/RPMS
+    dest: /tmp
   when: ansible_hostname != 'localhost'
 
 # Using the "find" module might seem to make sense here, but it returns a dictionary
