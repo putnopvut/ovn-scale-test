@@ -14,7 +14,7 @@
 # is able to magically install the RPMs in the proper order and not run into
 # dependency issues.
 - name: Gather RPMs to actually install
-  shell: find /tmp/RPMS \( -name 'python*-openvswitch-2*.rpm' -o -name 'openvswitch-2*.rpm' -o -name 'openvswitch-ovn-common-2*.rpm' -o -name 'openvswitch-ovn-host-2*.rpm' -o -name 'openvswitch-ovn-central-2*.rpm' \)
+  shell: find /tmp/RPMS \( -name 'python*-openvswitch-2*.rpm' -o -name 'openvswitch-2*.rpm' -o -name 'openvswitch-ovn-common-2*.rpm' -o -name 'openvswitch-ovn-host-2*.rpm' -o -name 'openvswitch-ovn-central-2*.rpm' -o -name 'openvswitch-debuginfo-2*.rpm' -o -name 'openvswitch-ovn-common-debuginfo-2*.rpm' -o -name 'openvswitch-ovn-host-debuginfo-2*.rpm' -o -name 'openvswitch-ovn-central-debuginfo-2*.rpm' \)
   register: install_rpms
 
 - name: Format RPM names
@@ -25,3 +25,8 @@
   yum:
     name: "{{new_list}}"
     state: latest
+
+- name: Clean up RPMs
+  file:
+    name: /tmp/RPMS/
+    state: absent
