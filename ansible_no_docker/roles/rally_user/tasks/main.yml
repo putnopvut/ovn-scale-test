@@ -4,3 +4,10 @@
     name: rally
     generate_ssh_key: yes
 
+- name: Set max core file size unlimited
+  lineinfile:
+    path: /home/rally/.bash_profile
+    line: 'ulimit -c unlimited'
+
+- name: Set kernel.core_pattern
+  command: sysctl kernel.core_pattern=/tmp/core.%e.%p.%h.%t
