@@ -77,7 +77,7 @@
     state: absent
 
 - name: Build OVN RPMs
-  command: rpmbuild -bb --without check --define '_ovs_cflags -fno-omit-frame-pointer' rhel/openvswitch-fedora.spec
+  shell: OVS_CFLAGS="-fno-omit-frame-pointer" rpmbuild -bb --without check rhel/openvswitch-fedora.spec
   args:
     chdir: "{{SOURCE}}/openvswitch-{{version.stdout}}"
 
