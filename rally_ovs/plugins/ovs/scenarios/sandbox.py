@@ -62,6 +62,7 @@ class SandboxScenario(scenario.OvsScenario):
 
         self._add_controller_resource(dep_name, host_container,
                                       controller_cidr)
+        ssh.close()
 
 
 
@@ -114,7 +115,7 @@ class SandboxScenario(scenario.OvsScenario):
         ssh.run("\n".join(cmds), stdout=sys.stdout, stderr=sys.stderr);
 
 
-    def _create_sandbox(self, sandbox_create_args):
+    def _create_sandbox(self, sandbox_create_args, farm=None):
         """
         :param sandbox_create_args from task config file
         """
@@ -124,7 +125,8 @@ class SandboxScenario(scenario.OvsScenario):
         amount = sandbox_create_args.get("amount", 1)
         batch = sandbox_create_args.get("batch", 1)
 
-        farm = sandbox_create_args.get("farm")
+        if not farm:
+            farm = sandbox_create_args.get("farm")
         controller_ip = self.context["controller"]["ip"]
 
         start_cidr = sandbox_create_args.get("start_cidr")
@@ -219,6 +221,7 @@ class SandboxScenario(scenario.OvsScenario):
             if install_method == "sandbox":
                 ssh = self.farm_clients(k)
                 ssh.run("\n".join(cmds), stdout=sys.stdout, stderr=sys.stderr)
+                ssh.close()
 
             self._delete_sandbox_resource(k, to_delete)
 
@@ -235,6 +238,7 @@ class SandboxScenario(scenario.OvsScenario):
                 ssh = self.farm_clients(sandbox["farm"])
                 cmd = "./ovs-sandbox.sh --ovn --start %s" % name
                 ssh.run(cmd, stdout=sys.stdout, stderr=sys.stderr);
+                ssh.close()
 
 
     @atomic.action_timer("sandbox.stop_sandbox")
@@ -251,3 +255,4 @@ class SandboxScenario(scenario.OvsScenario):
                 cmd = "./ovs-sandbox.sh --ovn %s --stop  %s" % \
                         (graceful, name)
                 ssh.run(cmd, stdout=sys.stdout, stderr=sys.stderr);
+                ssl.close()

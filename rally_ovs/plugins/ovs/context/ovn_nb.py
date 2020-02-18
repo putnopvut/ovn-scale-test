@@ -46,6 +46,7 @@ class OvnNorthboundContext(ovsclients.ClientsMixin, context.Context):
 
         self.context["ovn-nb"] = lswitches
         self.context["ovs-internal-ports"] = {}
+        ovn_nbctl.close()
 
     @logging.log_task_wrapper(LOG.info, _("Exit context: `ovn_nb`"))
     def cleanup(self):

@@ -24,7 +24,6 @@ class SshClient(OvsClient):
 
 
     def create_client(self):
-        print("*********   call OvnNbctl.create_client")
         return get_ssh_from_credential(self.credential)
 
 
@@ -168,11 +167,11 @@ class OvnNbctl(OvsClient):
             params = [name]
             self.run("lr-del", args=params)
 
-        def lswitch_port_add(self, lswitch, name, mac='', ip=''):
+        def lswitch_port_add(self, lswitch, name, mac='', ip='', gw=''):
             params =[lswitch, name]
             self.run("lsp-add", args=params)
 
-            return {"name":name, "mac":mac, "ip":ip}
+            return {"name":name, "mac":mac, "ip":ip, "gw":gw}
 
 
         def lport_list(self, lswitch):
@@ -257,6 +256,17 @@ class OvnNbctl(OvsClient):
             self.run("sync", opts)
             self.batch_mode = batch_mode
 
+        def close(self):
+            try:
+                self.ssh.close()
+            except AttributeError:
+                # Rally's ssh _client attribute can be either
+                # an ssh session or False (boolean). Attempting to close
+                # a boolean results in an AttributeError. It's not a
+                # problem if this happens, but we need to catch the
+                # exception so that the test doesn't fail.
+                pass
+
         def start_daemon(self):
             stdout = StringIO()
             opts = ["--detach",  "--pidfile", "--log-file"]
@@ -268,7 +278,6 @@ class OvnNbctl(OvsClient):
             self.socket = None
 
     def create_client(self):
-        print("*********   call OvnNbctl.create_client")
 
         client = self._OvnNbctl(self.credential)
 
@@ -284,6 +293,7 @@ class OvnSbctl(OvsClient):
             self.sandbox = None
             self.batch_mode = False
             self.cmds = None
+            self.socket = None
 
         def enable_batch_mode(self, value=True):
             self.batch_mode = bool(value)
@@ -390,8 +400,19 @@ class OvnSbctl(OvsClient):
             self.batch_mode = batch_mode
             return len(stdout.getvalue().splitlines()) == 1
 
+        def close(self):
+            try:
+                self.ssh.close()
+            except AttributeError:
+                # Rally's ssh _client attribute can be either
+                # an ssh session or False (boolean). Attempting to close
+                # a boolean results in an AttributeError. It's not a
+                # problem if this happens, but we need to catch the
+                # exception so that the test doesn't fail.
+                pass
+
+
     def create_client(self):
-        print("*********   call OvnSbctl.create_client")
 
         client = self._OvnSbctl(self.credential)
 
@@ -440,8 +461,18 @@ class OvsSsh(OvsClient):
 
             self.cmds = None
 
+        def close(self):
+            try:
+                self.ssh.close()
+            except AttributeError:
+                # Rally's ssh _client attribute can be either
+                # an ssh session or False (boolean). Attempting to close
+                # a boolean results in an AttributeError. It's not a
+                # problem if this happens, but we need to catch the
+                # exception so that the test doesn't fail.
+                pass
+
     def create_client(self):
-        print("*********   call OvsSsh.create_client")
         client = self._OvsSsh(self.credential)
         return client
 
@@ -525,8 +556,18 @@ class OvsVsctl(OvsClient):
             args += set_colval_args(*col_values)
             self.run("set", args=args)
 
+        def close(self):
+            try:
+                self.ssh.close()
+            except AttributeError:
+                # Rally's ssh _client attribute can be either
+                # an ssh session or False (boolean). Attempting to close
+                # a boolean results in an AttributeError. It's not a
+                # problem if this happens, but we need to catch the
+                # exception so that the test doesn't fail.
+                pass
+
     def create_client(self):
-        print("*********   call OvsVsctl.create_client")
         client = self._OvsVsctl(self.credential)
         return client
 
@@ -573,7 +614,17 @@ class OvsOfctl(OvsClient):
             oflow_data = oflow_data.split('\n')
             return len(oflow_data)
 
+        def close(self):
+            try:
+                self.ssh.close()
+            except AttributeError:
+                # Rally's ssh _client attribute can be either
+                # an ssh session or False (boolean). Attempting to close
+                # a boolean results in an AttributeError. It's not a
+                # problem if this happens, but we need to catch the
+                # exception so that the test doesn't fail.
+                pass
+
     def create_client(self):
-        print("*********   call OvsOfctl.create_client")
         client = self._OvsOfctl(self.credential)
         return client

@@ -34,11 +34,14 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
 
     def _start_daemon(self):
         ovn_nbctl = self._get_ovn_controller(self.install_method)
-        return ovn_nbctl.start_daemon()
+        ret = ovn_nbctl.start_daemon()
+        ovn_nbctl.close()
+        return ret
 
     def _stop_daemon(self):
         ovn_nbctl = self._get_ovn_controller(self.install_method)
         ovn_nbctl.stop_daemon()
+        ovn_nbctl.close()
 
     def _restart_daemon(self):
         self._stop_daemon()
@@ -55,7 +58,7 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
         if start_cidr:
             start_cidr = netaddr.IPNetwork(start_cidr)
 
-        mcast_snoop = lswitch_create_args.get("mcast_snoop", "true")
+        mcast_snoop = lswitch_create_args.get("mcast_snoop", "false")
         mcast_idle = lswitch_create_args.get("mcast_idle_timeout", 300)
         mcast_table_size = lswitch_create_args.get("mcast_table_size", 2048)
 
@@ -94,6 +97,7 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
 
         ovn_nbctl.flush() # ensure all commands be run
         ovn_nbctl.enable_batch_mode(False)
+        ovn_nbctl.close()
         return lswitches
 
     def _create_routers(self, router_create_args):
@@ -123,22 +127,17 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
 
         return lrouters
 
-    def _connect_network_to_router(self, router, network):
+    def _connect_network_to_router(self, router, network, ovn_nbctl):
         LOG.info("Connect network %s to router %s" % (network["name"], router["name"]))
-
-        ovn_nbctl = self.controller_client("ovn-nbctl")
-        ovn_nbctl.set_sandbox("controller-sandbox", self.install_method,
-                              self.context['controller']['host_container'])
-        ovn_nbctl.enable_batch_mode(False)
-
-
         base_mac = [i[:2] for i in self.task["uuid"].split('-')]
         base_mac[0] = str(hex(int(base_mac[0], 16) & 254))
         base_mac[3:] = ['00']*3
         mac = utils.get_random_mac(base_mac)
 
+        lrouter_port_ip = '{}/{}'.format(netaddr.IPAddress(network["cidr"].last - 1),
+                                         network["cidr"].prefixlen)
         lrouter_port = ovn_nbctl.lrouter_port_add(router["name"], network["name"], mac,
-                                                  str(network["cidr"]))
+                                                  lrouter_port_ip)
         ovn_nbctl.flush()
 
 
@@ -151,10 +150,14 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
         ovn_nbctl.flush()
 
     def _connect_networks_to_routers(self, lnetworks, lrouters, networks_per_router):
+        ovn_nbctl = self._get_ovn_controller(self.install_method)
+        ovn_nbctl.enable_batch_mode(False)
+
         for lrouter in lrouters:
             LOG.info("Connect %s networks to router %s" % (networks_per_router, lrouter["name"]))
             for lnetwork in lnetworks[:networks_per_router]:
                 LOG.info("connect networks %s cidr %s" % (lnetwork["name"], lnetwork["cidr"]))
-                self._connect_network_to_router(lrouter, lnetwork)
+                self._connect_network_to_router(lrouter, lnetwork, ovn_nbctl)
 
             lnetworks = lnetworks[networks_per_router:]
+        ovn_nbctl.close()
