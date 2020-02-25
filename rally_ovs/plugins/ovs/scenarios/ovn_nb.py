@@ -63,8 +63,8 @@ class OvnNorthbound(ovn.OvnScenario):
     def create_lport_acl_addrset(self, lswitch, lport_create_args, port_bind_args,
                                  ip_start_index = 0, addr_set_index = 0,
                                  create_addr_set = True, create_acls = True):
-        lports = self._create_lports(lswitch, lport_create_args,
-                                     lport_ip_shift = ip_start_index)
+        lports = self._create_lport(lswitch, lport_create_args,
+                                    lport_ip_shift = ip_start_index)
 
         if create_acls:
             network_cidr = lswitch.get("cidr", None)
@@ -148,9 +148,7 @@ class OvnNorthbound(ovn.OvnScenario):
                               lports_per_lswitch=None):
 
         lswitches = self._create_lswitches(lswitch_create_args)
-
-        for lswitch in lswitches:
-            self._create_lports(lswitch, lport_create_args, lports_per_lswitch)
+        self._create_lports(lswitches, lport_create_args, lports_per_lswitch)
 
         self._list_lports(lswitches)
 
@@ -162,11 +160,9 @@ class OvnNorthbound(ovn.OvnScenario):
                               lports_per_lswitch=None):
 
         lswitches = self._create_lswitches(lswitch_create_args)
-        for lswitch in lswitches:
-            lports = self._create_lports(lswitch, lport_create_args,
-                                        lports_per_lswitch)
-            self._delete_lport(lports)
-
+        lports = self._create_lports(lswitches, lport_create_args,
+                                     lports_per_lswitch)
+        self._delete_lport(lports)
         self._delete_lswitch(lswitches)
 
 
@@ -180,8 +176,8 @@ class OvnNorthbound(ovn.OvnScenario):
         if lswitch_create_args != None:
             lswitches = self._create_lswitches(lswitch_create_args)
             for lswitch in lswitches:
-                lports = self._create_lports(lswitch, lport_create_args,
-                                                    lports_per_lswitch)
+                lports = self._create_lport(lswitch, lport_create_args,
+                                            lports_per_lswitch)
                 lswitch["lports"] = lports
         else:
             lswitches = self.context["ovn-nb"]
