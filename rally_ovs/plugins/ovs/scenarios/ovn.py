@@ -295,7 +295,7 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
         ovn_nbctl.flush()
         ovn_nbctl.close()
 
-    @atomic.action_timer("ovn.pg-add")
+    @atomic.optional_action_timer("ovn.pg-add")
     def _port_group_add(self, port_group, port_list):
         ovn_nbctl = self.controller_client("ovn-nbctl")
         ovn_nbctl.set_sandbox("controller-sandbox", self.install_method,
@@ -304,7 +304,7 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
         LOG.info("create %s port_group [%s]" % (port_group, port_list))
         ovn_nbctl.port_group_add(port_group, port_list)
 
-    @atomic.action_timer("ovn.pg-set")
+    @atomic.optional_action_timer("ovn.pg-set")
     def _port_group_set(self, port_group, port_list):
         ovn_nbctl = self.controller_client("ovn-nbctl")
         ovn_nbctl.set_sandbox("controller-sandbox", self.install_method,
@@ -313,7 +313,7 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
         LOG.info("Add %s to port_group %s" % (port_list, port_group))
         ovn_nbctl.port_group_set(port_group, port_list)
 
-    @atomic.action_timer("ovn.pg-del")
+    @atomic.optional_action_timer("ovn.pg-del")
     def _port_group_del(self, port_group):
         ovn_nbctl = self.controller_client("ovn-nbctl")
         ovn_nbctl.set_sandbox("controller-sandbox", self.install_method,

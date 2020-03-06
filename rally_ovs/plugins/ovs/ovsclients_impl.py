@@ -246,11 +246,11 @@ class OvnNbctl(OvsClient):
 
         def port_group_set(self, port_group, port_list):
             params = [port_group, port_list]
-            self.run("pg−set−ports", [], params)
+            self.run("pg-set-ports", [], params)
 
         def port_group_del(self, port_group):
             params = [port_group]
-            self.run("pg−del", [], params)
+            self.run("pg-del", [], params)
 
         def show(self, lswitch=None):
             params = [lswitch] if lswitch else []
