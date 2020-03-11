@@ -301,6 +301,16 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
                                                               lrouters,
                                                               networks_per_router)
 
+    @atomic.action_timer("ovn_network.connect_gw_routers")
+    def _connect_networks_to_gw_routers(self, lnetworks, lrouters, sandboxes,
+                                        lnetwork_args, networks_per_router):
+        return super(OvnScenario, self)._connect_networks_to_gw_routers(
+            lnetworks, lrouters, sandboxes, lnetwork_args, networks_per_router)
+
+    @atomic.action_timer("ovn_network.add_gw_routers_routes_nat")
+    def _connect_gw_routers_routes(self, dps, lnetwork_args):
+        super(OvnScenario, self)._connect_gw_routers_routes(dps, lnetwork_args)
+
     @atomic.action_timer("ovn_network.create_phynet")
     def _create_phynet(self, lswitches, physnet, batch):
         LOG.info("Create phynet method: %s" % self.install_method)
