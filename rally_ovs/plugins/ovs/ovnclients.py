@@ -20,7 +20,6 @@ from rally.common.utils import RandomNameGeneratorMixin
 from rally_ovs.plugins.ovs import ovsclients
 from rally_ovs.plugins.ovs import utils
 
-
 LOG = logging.getLogger(__name__)
 
 
@@ -46,6 +45,10 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
     def _restart_daemon(self):
         self._stop_daemon()
         return self._start_daemon()
+
+    def _get_gw_ip(self, network_cidr, offset=1):
+        # Use the last IP (+ offset) in the CIDR as gateway IP.
+        return netaddr.IPAddress(network_cidr.last - offset)
 
     def _create_lswitches(self, lswitch_create_args, num_switches=-1):
         self.RESOURCE_NAME_FORMAT = "lswitch_XXXXXX_XXXXXX"
@@ -161,3 +164,138 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
 
             lnetworks = lnetworks[networks_per_router:]
         ovn_nbctl.close()
+
+    def _connect_gateway_router(self, router, network, gw_cidr, ext_cidr, sandbox):
+        ovn_nbctl = self.controller_client("ovn-nbctl")
+
+        base_mac = [i[:2] for i in self.task["uuid"].split('-')]
+        base_mac[0] = str(hex(int(base_mac[0], 16) & 254))
+        base_mac[3:] = ['00']*3
+
+        # TODO: create join switch
+        # TODO: add function to generate switch name
+        join_switch_name = "join_" + str(gw_cidr)
+        join_switch = ovn_nbctl.lswitch_add(join_switch_name)
+
+        # TODO: create ports join <-> router
+        router_port_join_switch = "rpj-" + str(gw_cidr)
+        rp_gw = self._get_gw_ip(gw_cidr, 1)
+        router_port_join_switch_ip = '{}/{}'.format(rp_gw, gw_cidr.prefixlen)
+        ovn_nbctl.lrouter_port_add(router["name"], router_port_join_switch,
+                                   utils.get_random_mac(base_mac),
+                                   router_port_join_switch_ip)
+
+        join_switch_router_port = "jrp-" + str(gw_cidr)
+        ovn_nbctl.lswitch_port_add(join_switch_name, join_switch_router_port)
+        ovn_nbctl.db_set('Logical_Switch_Port', join_switch_router_port,
+                         ('options', {"router-port":router_port_join_switch}),
+                         ('type', 'router'),
+                         ('address', 'router'))
+
+        # TODO: create GR
+        gw_router_name = "grouter_" + str(gw_cidr)
+        gw_router = ovn_nbctl.lrouter_add(gw_router_name)
+        # TODO: bind GR to local chassis
+        ovn_nbctl.db_set('Logical_Router', gw_router_name,
+                         ('options', {'chassis': sandbox["host_container"]}))
+
+        # TODO: create ports join <-> GR
+        grouter_port_join_switch = "grpj-" + str(gw_cidr)
+        gr_gw = self._get_gw_ip(gw_cidr, 2)
+        grouter_port_join_switch_ip = '{}/{}'.format(gr_gw, gw_cidr.prefixlen)
+        ovn_nbctl.lrouter_port_add(gw_router_name, grouter_port_join_switch,
+                                   utils.get_random_mac(base_mac),
+                                   grouter_port_join_switch_ip)
+
+        join_switch_gw_router_port = "jrpg-" + str(gw_cidr)
+        ovn_nbctl.lswitch_port_add(join_switch_name, join_switch_gw_router_port)
+        ovn_nbctl.db_set('Logical_Switch_Port', join_switch_gw_router_port,
+                         ('options', {"router-port":grouter_port_join_switch}),
+                         ('type', 'router'),
+                         ('address', 'router'))
+
+        # TODO: create EXT sw
+        ext_switch_name = "ext_" + str(ext_cidr)
+        ext_switch = ovn_nbctl.lswitch_add(ext_switch_name)
+
+        # TODO: create ports ext-sw <-> GR
+        grouter_port_ext_switch = "grpe-" + str(ext_cidr)
+        gw = self._get_gw_ip(ext_cidr, 1)
+        gr_def_gw = self._get_gw_ip(ext_cidr, 2)
+        grouter_port_ext_switch_ip = '{}/{}'.format(gw, ext_cidr.prefixlen)
+        ovn_nbctl.lrouter_port_add(gw_router_name, grouter_port_ext_switch,
+                                   utils.get_random_mac(base_mac),
+                                   grouter_port_ext_switch_ip)
+    
+        ext_switch_gw_router_port = "erpg-" + str(ext_cidr)
+        ovn_nbctl.lswitch_port_add(ext_switch_name, ext_switch_gw_router_port)
+        ovn_nbctl.db_set('Logical_Switch_Port', ext_switch_gw_router_port,
+                         ('options', {"router-port":grouter_port_ext_switch}),
+                         ('type', 'router'),
+                         ('address', 'router'))
+
+        # TODO: comment
+        gw_router['def_gw'] = gr_def_gw
+        gw_router['gw'] = gr_gw
+        gw_router['rp_gw'] = rp_gw
+
+        return network, router, join_switch, gw_router, ext_switch
+
+    def _connect_networks_to_gw_routers(self, lnetworks, lrouters, sandboxes,
+                                        lnetwork_args, networks_per_router):
+        gw_cidr = lnetwork_args.get('start_gw_cidr')
+        if not gw_cidr:
+            LOG.error("_connect_networks_to_gw_routers: missing start_gw_cidr")
+            return []
+
+        ext_cidr = lnetwork_args.get('start_ext_cidr')
+        if not ext_cidr:
+            LOG.error("_connect_networks_to_gw_routers: missing start_ext_cidr")
+            return []
+
+        dps = []
+        for lrouter in lrouters:
+            for i, lnetwork in enumerate(lnetworks[:networks_per_router]):
+                LOG.info("Connect router %s to gateway router for network %s cidr %s gw_cidr %s ext_cidr %s" %
+                            (lrouter["name"], lnetwork["name"], lnetwork["cidr"],
+                             str(gw_cidr), str(ext_cidr)))
+                dps.append(self._connect_gateway_router(lrouter, lnetwork,
+                                                        gw_cidr, ext_cidr,
+                                                        sandboxes[i]))
+                gw_cidr = gw_cidr.next()
+                ext_cidr = ext_cidr.next()
+            lnetworks = lnetworks[networks_per_router:]
+            sandboxes = sandboxes[networks_per_router:]
+        return dps
+
+    def _connect_gw_routers_routes(self, dps, lnetwork_args):
+        cluster_cidr = lnetwork_args.get('cluster_cidr')
+        if not cluster_cidr:
+            LOG.error('_connect_gw_routers_routes: missing cluser_cidr')
+            return
+
+        ovn_nbctl = self.controller_client("ovn-nbctl")
+        for network, router, join_switch, gw_router, ext_switch in dps:
+
+            router_name = router['name']
+            gw_router_name = gw_router['name']
+
+            # TODO: enable lb_force_snat_ip
+            ovn_nbctl.db_set('Logical_Router', gw_router_name,
+                             ('options', {'lb_force_snat_ip': str(gw_router['gw'])}))
+
+            #TODO: default route on gw router to get out of cluster via physnet
+            ovn_nbctl.lrouter_route_add(gw_router_name, "0.0.0.0/0",
+                                        str(gw_router['def_gw']))
+            #TODO: route for traffic entering the cluster 
+            #TODO: hardcoded
+            ovn_nbctl.lrouter_route_add(gw_router_name, cluster_cidr,
+                                        str(gw_router['rp_gw']))
+            #TODO: route on ovn-cluster-router for traffic that needs to exit the
+            #cluster
+            ovn_nbctl.lrouter_route_add(router_name, str(network["cidr"]),
+                                        str(gw_router['gw']), policy="src-ip")
+
+            #TODO: SNAT traffic leaving the cluster
+            ovn_nbctl.lrouter_nat_add(gw_router_name, "snat",
+                                      str(gw_router['gw']), cluster_cidr)
