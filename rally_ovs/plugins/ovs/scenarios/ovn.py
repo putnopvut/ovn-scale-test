@@ -22,6 +22,7 @@ import copy
 import random
 import netaddr
 import time
+from datetime import datetime
 from io import StringIO
 
 LOG = logging.getLogger(__name__)
@@ -580,19 +581,19 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
                             sandbox['host_container'])
         ovs_ssh.enable_batch_mode(False)
 
-        success = False
-        for i in range(wait_timeout_s):
+        start_time = datetime.now()
+        while True:
             try:
-                ovs_ssh.run("ip netns exec {} ping -q -c 1 -W 1 {}".format(lport["name"], lport["gw"]))
-                ovs_ssh.flush()
-                success = True
+                ovs_ssh.run("ip netns exec {} ping -q -c 1 -W 0.1 {}".format(
+                                lport["name"], lport["gw"]))
                 break
             except:
-                time.sleep(0.1)
-        ovs_ssh.close()
+                pass
 
-        if not success:
-            LOG.info("Timeout waiting for port %s to be able to ping gateway %s".format(lport["name"], lport["gw"]))
+            if (datetime.now() - start_time).seconds > wait_timeout_s:
+                LOG.info("Timeout waiting for port {} to be able to ping gateway {}".format(
+                        lport["name"], lport["gw"]))
+                raise exceptions.ThreadTimeoutException()
 
     @atomic.action_timer("ovn_network.wait_port_lsp_up")
     def _wait_up_port_lsp(self, lports, ovn_nbctl):
