@@ -2,6 +2,7 @@
 {% set farm_nodes = farm_nodes or 1 %}
 {% set ports_per_network = ports_per_network or 1 %}
 {% set gw_router = gw_router or False %}
+{% set gw_batch_ops = gw_batch_ops or False %}
 {% set ovn_monitor_all = ovn_monitor_all or false %}
 {% set cluster_cmd_path = cluster_cmd_path or "/root/ovn-fake-testing/ovn-fake-multinode" %}
 {% set node_batch_size = node_batch_size or 1 %}
@@ -182,6 +183,7 @@
                             "start_gw_cidr": "2.0.0.0/16",
                             "start_ext_cidr": "3.0.0.0/16",
                             "gw_router_per_network": {{gw_router}},
+                            "batch": {{gw_batch_ops}},
                             "cluster_cidr": "16.0.0.0/4"
                         },
                         "port_bind_args": {
