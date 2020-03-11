@@ -471,10 +471,10 @@ class OvsSsh(OvsClient):
             if self.cmds == None:
                 return
 
-            self.ssh.run("\n".join(self.cmds),
-                         stdout=sys.stdout, stderr=sys.stderr)
-
+            cmds = "\n".join(self.cmds)
             self.cmds = None
+
+            self.ssh.run(cmds, stdout=sys.stdout, stderr=sys.stderr)
 
         def close(self):
             try:
