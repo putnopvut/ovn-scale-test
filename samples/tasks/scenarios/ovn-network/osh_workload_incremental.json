@@ -177,7 +177,7 @@
                             "batch_size": {{node_batch_size}}
                         },
                         "lswitch_create_args": {
-                            "start_cidr": "1.0.0.0/16"
+                            "start_cidr": "16.0.0.0/16"
                         },
                         "lport_create_args": {
                             "port_security" : true
@@ -187,7 +187,7 @@
                             "start_gw_cidr": "2.0.0.0/16",
                             "start_ext_cidr": "3.0.0.0/16",
                             "gw_router_per_network": {{gw_router}},
-                            "cluster_cidr": "1.0.0.0/8"
+                            "cluster_cidr": "16.0.0.0/4"
                         },
                         "port_bind_args": {
                             "internal" : true,
