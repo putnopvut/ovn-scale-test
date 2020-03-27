@@ -31,9 +31,9 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
         ovn_nbctl.set_daemon_socket(self.context.get("daemon_socket", None))
         return ovn_nbctl
 
-    def _start_daemon(self):
+    def _start_daemon(self, nbctld_config):
         ovn_nbctl = self._get_ovn_controller(self.install_method)
-        ret = ovn_nbctl.start_daemon()
+        ret = ovn_nbctl.start_daemon(nbctld_config)
         ovn_nbctl.close()
         return ret
 
@@ -42,9 +42,9 @@ class OvnClientMixin(ovsclients.ClientsMixin, RandomNameGeneratorMixin):
         ovn_nbctl.stop_daemon()
         ovn_nbctl.close()
 
-    def _restart_daemon(self):
+    def _restart_daemon(self, nbctld_config):
         self._stop_daemon()
-        return self._start_daemon()
+        return self._start_daemon(nbctld_config)
 
     def _get_gw_ip(self, network_cidr, offset=1):
         # Use the last IP (+ offset) in the CIDR as gateway IP.
