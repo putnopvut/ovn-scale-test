@@ -52,22 +52,22 @@ class OvnNorthbound(ovn.OvnScenario):
         else:
             self._port_group_set(name, port_list, atomic_action = False)
 
-    @atomic.action_timer("ovn.create_port_acls")
-    def create_port_acls(self, acl_dev, lports, addr_set,
-                         acl_type="switch"):
+    @atomic.action_timer("ovn.create_port_group_acls")
+    def create_port_group_acls(self, acl_dev, lports, addr_set,
+                               acl_type="switch"):
         """
         create two acl for each logical port
         prio 1000: allow inter project traffic
         prio 900: deny all
         """
-        match = "%(direction)s == \"%(lport)s\" && ip4.dst == %(address_set)s"
+        match = "%(direction)s == %(lport)s && ip4.dst == $%(address_set)s"
         acl_create_args = { "match" : match, "address_set" : addr_set,
                             "type": acl_type}
         self._create_acl(acl_dev, lports, acl_create_args, 1,
                          atomic_action = False)
         acl_create_args = { "priority" : 900, "action" : "drop",
-                            "match" : "%(direction)s == \"%(lport)s\" && ip4",
-                            "type": acl_type}
+                            "match" : "%(direction)s == %(lport)s && ip4",
+                            "type": acl_type,  "action": "allow-related"}
         self._create_acl(acl_dev, lports, acl_create_args, 1,
                          atomic_action = False)
 
@@ -102,8 +102,8 @@ class OvnNorthbound(ovn.OvnScenario):
             if create_port_group:
                 port_group_acl = {"name" : "@%s" % port_group_name}
                 port_group = {"name" : port_group_name}
-                self.create_port_acls(port_group, [port_group_acl],
-                                      addr_set_name, "port-group")
+                self.create_port_group_acls(port_group, [port_group_acl],
+                                            addr_set_name, "port-group")
 
         sandboxes = self.context["sandboxes"]
         sandbox = sandboxes[self.context["iteration"] % len(sandboxes)]
