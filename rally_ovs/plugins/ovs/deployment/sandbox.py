@@ -25,6 +25,7 @@ from rally_ovs.plugins.ovs.deployment.engines import get_updated_server
 from rally_ovs.plugins.ovs.deployment.engines import OVS_USER
 from rally_ovs.plugins.ovs.deployment.engines import OVS_REPO
 from rally_ovs.plugins.ovs.deployment.engines import OVS_BRANCH
+from rally_ovs.plugins.ovs.utils import put_file
 
 
 
@@ -54,7 +55,7 @@ class SandboxEngine(engine.Engine):
 
     def _put_file(self, server, filename):
         localpath = get_script_path(filename)
-        server.ssh.put_file(localpath, filename)
+        put_file(server.client, localpath, filename)
 
 
 
@@ -89,8 +90,8 @@ EOF''' % (http_proxy, https_proxy)
         cmd = "./install.sh %s %s %s %s" % (ovs_repo, ovs_branch, ovs_user, repo_action)
         cmds.append(cmd)
         print("install ovs:", cmds)
-        ovs_server.ssh.run("\n".join(cmds),
-                            stdout=sys.stdout, stderr=sys.stderr);
+        ovs_server.client.run("\n".join(cmds),
+                              stdout=sys.stdout, stderr=sys.stderr);
 
 
 

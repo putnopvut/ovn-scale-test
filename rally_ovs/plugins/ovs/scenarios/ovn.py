@@ -31,42 +31,42 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
 
     def __init__(self, context=None):
         super(OvnScenario, self).__init__(context)
-        self._ssh_conns = None
+        self._client_conns = None
 
     def __del__(self):
-        if self._ssh_conns:
-            self._ssh_conns.clear()
+        if self._client_conns:
+            self._client_conns.clear()
 
     def _build_conn_hash(self, context):
-        if not self._ssh_conns is None:
+        if not self._client_conns is None:
             return
 
         if not context:
             return
 
-        self._ssh_conns = {}
+        self._client_conns = {}
 
         for sandbox in context["sandboxes"]:
             sb_name = sandbox["name"]
             farm = sandbox["farm"]
-            ovs_ssh = self.farm_clients(farm, "ovs-ssh")
-            ovs_ssh.set_sandbox(sb_name, self.install_method,
-                                sandbox["host_container"])
-            ovs_ssh.enable_batch_mode()
-            self._ssh_conns[sb_name] = ovs_ssh
+            ovs_client = self.farm_clients(farm, "ovs-generic-client")
+            ovs_client.set_sandbox(sb_name, self.install_method,
+                                   sandbox["host_container"])
+            ovs_client.enable_batch_mode()
+            self._client_conns[sb_name] = ovs_client
 
     def _get_conn(self, sb_name):
         self._build_conn_hash(self.context)
-        return self._ssh_conns[sb_name]
+        return self._client_conns[sb_name]
 
     def _flush_conns(self, cmds=[]):
-        if self._ssh_conns is None:
+        if self._client_conns is None:
             return
 
-        for _, ovs_ssh in self._ssh_conns.items():
+        for _, ovs_client in self._client_conns.items():
             for cmd in cmds:
-                ovs_ssh.run(cmd)
-            ovs_ssh.flush()
+                ovs_client.run(cmd)
+            ovs_client.flush()
 
     '''
     return: [{"name": "lswitch_xxxx_xxxxx", "cidr": netaddr.IPNetwork}, ...]
@@ -449,8 +449,8 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
     def _bind_ovs_internal_vm(self, lport_sbs):
         for sb_name, (sandbox, lports) in lport_sbs.items():
             farm = sandbox['farm']
-            ovs_ssh = self.farm_clients(farm, "ovs-ssh")
-            ovs_ssh.set_sandbox(sb_name, self.install_method,
+            ovs_client = self.farm_clients(farm, "ovs-generic-client")
+            ovs_client.set_sandbox(sb_name, self.install_method,
                                 sandbox['host_container'])
             for lport in lports:
                 port_name = lport["name"]
@@ -460,32 +460,32 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
                 # TODO: some containers don't have ethtool installed
                 if not sandbox["host_container"]:
                     # Disable tx offloading on the port
-                    ovs_ssh.run('ethtool -K {p} tx off &> /dev/null'.format(p=port_name))
-                ovs_ssh.run('ip netns add {p}'.format(p=port_name))
-                ovs_ssh.run('ip link set {p} netns {p}'.format(p=port_name))
-                ovs_ssh.run('ip netns exec {p} ip link set {p} address {m}'.format(
+                    ovs_client.run('ethtool -K {p} tx off &> /dev/null'.format(p=port_name))
+                ovs_client.run('ip netns add {p}'.format(p=port_name))
+                ovs_client.run('ip link set {p} netns {p}'.format(p=port_name))
+                ovs_client.run('ip netns exec {p} ip link set {p} address {m}'.format(
                     p=port_name, m=port_mac)
                 )
-                ovs_ssh.run('ip netns exec {p} ip addr add {ip} dev {p}'.format(
+                ovs_client.run('ip netns exec {p} ip addr add {ip} dev {p}'.format(
                     p=port_name, ip=port_ip)
                 )
-                ovs_ssh.run('ip netns exec {p} ip link set {p} up'.format(
+                ovs_client.run('ip netns exec {p} ip link set {p} up'.format(
                     p=port_name)
                 )
 
                 # Add default route
-                ovs_ssh.run('ip netns exec {p} ip route add default via {gw}'.format(
+                ovs_client.run('ip netns exec {p} ip route add default via {gw}'.format(
                     p=port_name, gw=port_gw)
                 )
-                ovs_ssh.flush()
+                ovs_client.flush()
 
                 # Store the port in the context so we can use its information later
                 # on or at cleanup
                 self.context["ovs-internal-ports"][port_name] = (lport, sandbox)
 
-    def _delete_ovs_internal_vm(self, port_name, ovs_ssh, ovs_vsctl):
+    def _delete_ovs_internal_vm(self, port_name, ovs_client, ovs_vsctl):
         ovs_vsctl.del_port(port_name)
-        ovs_ssh.run('ip netns del {p}'.format(p=port_name))
+        ovs_client.run('ip netns del {p}'.format(p=port_name))
 
     def _flush_ovs_internal_ports(self, sandbox):
         stdout = StringIO()
@@ -498,13 +498,13 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
         ovs_vsctl.run("find interface type=internal", ["--bare", "--columns", "name"], stdout=stdout)
         output = stdout.getvalue()
 
-        ovs_ssh = self.farm_clients(farm, "ovs-ssh")
-        ovs_ssh.set_sandbox(sb_name, self.install_method, host_container)
+        ovs_client = self.farm_clients(farm, "ovs-genric-client")
+        ovs_client.set_sandbox(sb_name, self.install_method, host_container)
 
         for name in list(filter(None, output.splitlines())):
             if "lp" not in name:
                 continue
-            self._delete_ovs_internal_vm(name, ovs_ssh, ovs_vsctl)
+            self._delete_ovs_internal_vm(name, ovs_client, ovs_vsctl)
 
     def _cleanup_ovs_internal_ports(self, sandboxes):
         conns = {}
@@ -512,24 +512,24 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
             sb_name = sandbox["name"]
             farm = sandbox["farm"]
             host_container = sandbox["host_container"]
-            ovs_ssh = self.farm_clients(farm, "ovs-ssh")
-            ovs_ssh.set_sandbox(sb_name, self.install_method,
+            ovs_client = self.farm_clients(farm, "ovs-generic-client")
+            ovs_client.set_sandbox(sb_name, self.install_method,
                                 host_container)
-            ovs_ssh.enable_batch_mode()
+            ovs_client.enable_batch_mode()
             ovs_vsctl = self.farm_clients(farm, "ovs-vsctl")
             ovs_vsctl.set_sandbox(sandbox, self.install_method,
                                   host_container)
             ovs_vsctl.enable_batch_mode()
-            conns[sb_name] = (ovs_ssh, ovs_vsctl)
+            conns[sb_name] = (ovs_client, ovs_vsctl)
 
         for _, (lport, sandbox) in self.context["ovs-internal-ports"].items():
             sb_name = sandbox["name"]
-            (ovs_ssh, ovs_vsctl) = conns[sb_name]
-            self._delete_ovs_internal_vm(lport["name"], ovs_ssh, ovs_vsctl)
+            (ovs_client, ovs_vsctl) = conns[sb_name]
+            self._delete_ovs_internal_vm(lport["name"], ovs_client, ovs_vsctl)
 
-        for _, (ovs_ssh, ovs_vsctl) in conns.items():
+        for _, (ovs_client, ovs_vsctl) in conns.items():
             ovs_vsctl.flush()
-            ovs_ssh.flush()
+            ovs_client.flush()
 
     @atomic.action_timer("ovn_network.bind_port")
     def _bind_ports(self, lports, sandboxes, port_bind_args):
@@ -563,10 +563,10 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
 
     def _ping_port(self, lport, wait_timeout_s):
         _, sandbox = self.context["ovs-internal-ports"][lport["name"]]
-        ovs_ssh = self.farm_clients(sandbox["farm"], "ovs-ssh")
-        ovs_ssh.set_sandbox(sandbox, self.install_method,
+        ovs_client = self.farm_clients(sandbox["farm"], "ovs-generic-client")
+        ovs_client.set_sandbox(sandbox, self.install_method,
                             sandbox['host_container'])
-        ovs_ssh.enable_batch_mode(False)
+        ovs_client.enable_batch_mode(False)
 
         if lport.get("ext-gw"):
             dest = lport["ext-gw"]
@@ -576,7 +576,7 @@ class OvnScenario(ovnclients.OvnClientMixin, scenario.OvsScenario):
         start_time = datetime.now()
         while True:
             try:
-                ovs_ssh.run("ip netns exec {} ping -q -c 1 -W 0.1 {}".format(
+                ovs_client.run("ip netns exec {} ping -q -c 1 -W 0.1 {}".format(
                                 lport["name"], dest))
                 break
             except:

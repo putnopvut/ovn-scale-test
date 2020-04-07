@@ -38,8 +38,13 @@ def get_ovn_multihost_info(deploy_uuid, controller_name):
         cred = db.resource_get_all(dep["uuid"], type=ResourceType.CREDENTIAL)[0]
         cred = copy.deepcopy(cred.info)
         name = dep["name"]
+        server_type = dep.config['provider'].get('server_type', 'ssh')
 
-        info = { "name" : name, "credential" :  cred}
+        info = {
+            "name": name,
+            "credential": cred,
+            "server_type": server_type,
+        }
 
         if name == controller_name:
             multihost_info["controller"][name] = info

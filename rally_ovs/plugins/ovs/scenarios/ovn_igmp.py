@@ -19,6 +19,7 @@ from rally_ovs.plugins.ovs.scenarios import ovn_network
 from rally.task import scenario
 from rally.task import validation
 from rally.task import atomic
+from rally_ovs.plugins.ovs.utils import put_file
 
 import time
 
@@ -54,8 +55,8 @@ class OvnIGMP(ovn_network.OvnNetwork):
 
     def _install_mcast_tester(self, sandboxes, path):
         for sandbox in sandboxes:
-            ovs_ssh = self._get_conn(sandbox["name"])
-            ovs_ssh.ssh.put_file(path, '/tmp/test.c')
+            ovs_client = self._get_conn(sandbox["name"])
+            put_file(ovs_client, path, '/tmp/test.c')
 
         self._flush_conns(cmds=[
             'gcc -lpthread -o /tmp/test /tmp/test.c'
@@ -108,36 +109,36 @@ class OvnIGMP(ovn_network.OvnNetwork):
         for lport in ports:
             port_name = lport["name"]
             _, sandbox = self.context["ovs-internal-ports"][port_name]
-            ovs_ssh = self._get_conn(sandbox["name"])
-            ovs_ssh.run(
+            ovs_client = self._get_conn(sandbox["name"])
+            ovs_client.run(
                 'echo {n} > /tmp/test-{p}-input'.format(
                     n=len(iterations), p=port_name))
 
         for expected_count, lport_map in iterations:
             for port_name, port_groups in lport_map.items():
                 _, sandbox = self.context["ovs-internal-ports"][port_name]
-                ovs_ssh = self._get_conn(sandbox["name"])
-                ovs_ssh.run(
+                ovs_client = self._get_conn(sandbox["name"])
+                ovs_client.run(
                     'echo {n} >> /tmp/test-{p}-input'.format(
                         n=port_groups['n_groups'], p=port_name))
                 for mc_group in port_groups['groups']:
-                    ovs_ssh.run(
+                    ovs_client.run(
                         'echo {g} >> /tmp/test-{p}-input'.format(
                             g=mc_group, p=port_name))
             self._flush_conns()
 
     def _start_mcast_tester(self, port_name):
         _, sandbox = self.context["ovs-internal-ports"][port_name]
-        ovs_ssh = self._get_conn(sandbox["name"])
+        ovs_client = self._get_conn(sandbox["name"])
         input_file = '/tmp/test-{p}-input'.format(p=port_name)
-        ovs_ssh.run(
+        ovs_client.run(
             'ip netns exec {p} /tmp/test {ifile}'.format(
                 p=port_name, ifile=input_file))
 
     def _trigger_mcast_tester(self, port_name):
         _, sandbox = self.context["ovs-internal-ports"][port_name]
-        ovs_ssh = self._get_conn(sandbox["name"])
-        ovs_ssh.run(
+        ovs_client = self._get_conn(sandbox["name"])
+        ovs_client.run(
             "kill -s SIGUSR1 `ps aux | grep {p} | grep -v grep | "
             "awk '{{print $2}}'` &> /dev/null || /bin/true".format(
         p=port_name))

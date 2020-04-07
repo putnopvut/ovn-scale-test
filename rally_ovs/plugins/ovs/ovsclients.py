@@ -32,10 +32,10 @@ def configure(name):
 
 
 class OvsClient(plugin.Plugin):
-    def __init__(self, credential, cache_obj):
+    def __init__(self, credential, cache_obj, server_type):
         self.credential = credential
         self.cache = cache_obj
-
+        self.server_type = server_type
 
     @classmethod
     def get(cls, name, namespace=_NAMESPACE):
@@ -57,14 +57,14 @@ class OvsClient(plugin.Plugin):
 
 
 class Clients(object):
-    def __init__(self, credential):
+    def __init__(self, credential, server_type):
         self.credential = credential
+        self.server_type = server_type
         self.cache = {}
 
     def __getattr__(self, client_name):
-        return OvsClient.get(client_name)(self.credential, self.cache)
-
-
+        return OvsClient.get(client_name)(self.credential, self.cache,
+                                          self.server_type)
 
     def clear(self):
         """Remove all cached client handles."""
@@ -89,12 +89,14 @@ class ClientsMixin(object):
 
         for k,v in six.iteritems(multihost_info["controller"]):
             cred = v["credential"]
-            self._controller_clients = Clients(cred)
+            server_type = v["server_type"]
+            self._controller_clients = Clients(cred, server_type)
 
         self._farm_clients = {}
         for k,v in six.iteritems(multihost_info["farms"]):
             cred = v["credential"]
-            self._farm_clients[k] = Clients(cred)
+            server_type = v["server_type"]
+            self._farm_clients[k] = Clients(cred, server_type)
 
         self.install_method = multihost_info["install_method"]
 

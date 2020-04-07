@@ -27,6 +27,7 @@ from rally_ovs.plugins.ovs.consts import ResourceType
 
 
 from rally_ovs.plugins.ovs.deployment.sandbox import SandboxEngine
+from rally_ovs.plugins.ovs.deployment.providers.ovn_sandbox_provider import OvsServer
 
 
 LOG = logging.getLogger(__name__)
@@ -119,12 +120,12 @@ class OvnSandboxFarmEngine(SandboxEngine):
 
         for resource in self.deployment.get_resources():
             if install_method != "physical" and resource["type"] == ResourceType.CREDENTIAL:
-                server = provider.Server.from_credentials(resource.info)
+                server = OvsServer(self.get_provider().config, resource.info)
 
                 cmd = "[ -x ovs-sandbox.sh ] && ./ovs-sandbox.sh --cleanup-all"
 
                 try:
-                    server.ssh.run(cmd,
+                    server.client.run(cmd,
                             stdout=sys.stdout, stderr=sys.stderr,
                             raise_on_error=False)
                 except Exception as e:

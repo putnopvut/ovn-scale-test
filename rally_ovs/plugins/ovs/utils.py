@@ -23,9 +23,14 @@ from rally.common import utils
 
 from rally.common import db
 
+import socket
+import selectors
+import time
+import logging
+
+LOG = logging.getLogger(__name__)
 
 cidr_incr = utils.RAMInt()
-
 
 '''
     Find credential resource from DB by deployment uuid, and return
@@ -147,9 +152,96 @@ def get_sandboxes(deploy_uuid, farm="", tag=""):
     return sandboxes
 
 
+class NCatError(Exception):
+    def __init__(self, details):
+        self.details = details
 
 
+class NCatClient(object):
+    def __init__(self, server, port):
+        self.server = server
+        LOG.info(f"Creating connection to {server}:{port}")
+        self.sock = socket.create_connection((server, port))
+        self.sel = selectors.DefaultSelector()
+        self.sel.register(self.sock, selectors.EVENT_READ)
+
+    def put_file(source_path, dest_path):
+        first_line = True
+        with open(source_path) as infile:
+            for line in infile:
+                redirect = '>' if first_line else '>>'
+                self.run(f'echo -e "{line}" {redirect} {dest_path}')
+                first_line = False
+
+    def run(self, cmd, stdin=None, stdout=None, stderr=None,
+            raise_on_error=True, timeout=3600):
+        start = time.clock_gettime(time.CLOCK_MONOTONIC)
+        end = time.clock_gettime(time.CLOCK_MONOTONIC) + timeout
+        to = end - start
+        # We have to doctor the command a bit for three reasons:
+        # 1. We need to add a newline to ensure that the command
+        #    gets sent to the server and doesn't just get put in
+        #    the socket's write buffer.
+        # 2. We need to pipe stderr to stdout so that stderr gets
+        #    returned over the client connection.
+        # 3. We need to add some marker text so our client knows
+        #    that it has received all output from the command. This
+        #    marker text let's us know if the command completed
+        #    successfully or not.
+        good = "SUCCESS"
+        bad = "FAIL"
+        result = f"&& echo -n {good} || echo -n {bad}"
+        LOG.info(f"Sending command {cmd}")
+        self.sock.send(f"({cmd}) 2>&1 {result}\n".encode('utf-8'))
+        out = ""
+        stream = None
+        error = False
+        while True:
+            events = self.sel.select(to)
+            if len(events) == 0:
+                break
+            for key, mask in events:
+                buf = key.fileobj.recv(4096).decode('utf-8')
+                LOG.info(f"Received {buf}")
+                if buf.endswith(good):
+                    LOG.info("Ends with good!")
+                    out += buf[:-len(good)]
+                    stream = stdout
+                    to = 0
+                    break
+                elif buf.endswith(bad):
+                    LOG.info("Ends with bad!")
+                    out += buf[:-len(bad)]
+                    # We assume that if the command errored, then everything
+                    # that was output was stderr. This isn't necessarily
+                    # accurate but it hopefully won't ruffle too many feathers.
+                    stream = stderr
+                    error = True
+                    to = 0
+                    break
+                else:
+                    LOG.info("Ends with other")
+                    out += buf
+                    to = end - time.clock_gettime(time.CLOCK_MONOTONIC)
+
+        if stream is not None:
+            stream.write(out)
+
+        if error and raise_on_error:
+            details = (f"Error running command {cmd}\n"
+                       f"Last stderr output is {out}\n")
+            raise NCatError(details)
 
 
+def get_client_connection(cred, server_type):
+    if server_type == "plaintext":
+        return NCatClient(cred["host"], cred.get('port', 8000))
+    else:
+        return get_ssh_from_credential(cred)
 
-
+def put_file(client, source, dest):
+    if isinstance(client, NCatClient):
+        client.put_file(source, dest)
+    else:
+        # SSH client
+        client.ssh.put_file(source, dest)

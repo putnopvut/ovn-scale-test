@@ -57,8 +57,8 @@ class SandboxScenario(scenario.OvsScenario):
         cmd = "./ovs-sandbox.sh --controller --ovn \
                             --controller-ip %s --device %s;" % \
                             (controller_cidr, net_dev)
-        ssh = self.controller_client()
-        ssh.run(cmd, stdout=sys.stdout, stderr=sys.stderr)
+        client = self.controller_client()
+        client.run(cmd, stdout=sys.stdout, stderr=sys.stderr)
 
         self._add_controller_resource(dep_name, host_container,
                                       controller_cidr)
@@ -110,8 +110,8 @@ class SandboxScenario(scenario.OvsScenario):
 
 
     @atomic.action_timer("sandbox.create_sandbox")
-    def _do_create_sandbox(self, ssh, cmds):
-        ssh.run("\n".join(cmds), stdout=sys.stdout, stderr=sys.stderr);
+    def _do_create_sandbox(self, client, cmds):
+        client.run("\n".join(cmds), stdout=sys.stdout, stderr=sys.stderr);
 
 
     def _create_sandbox(self, sandbox_create_args, farm=None):
@@ -149,9 +149,9 @@ class SandboxScenario(scenario.OvsScenario):
         sandbox_hosts = netaddr.iter_iprange(sandbox_cidr.ip, sandbox_cidr.last)
 
         # Everything is preconfigured on physical deployments so no need to
-        # SSH into the sandbox.
+        # connect to the sandbox.
         if install_method != "physical":
-            ssh = self.farm_clients(farm)
+            client = self.farm_clients(farm)
 
         sandboxes = {}
         batch_left = min(batch, amount)
@@ -175,11 +175,11 @@ class SandboxScenario(scenario.OvsScenario):
                 sandboxes["sandbox-%s" % host_ip] = tag
 
             if install_method == "docker":
-                print("Do not run ssh; sandbox installed by ansible-docker")
+                print("Do not run client; sandbox installed by ansible-docker")
             elif install_method == "physical":
-                print("Do not run ssh; sandbox installed on physical test bed")
+                print("Do not run client; sandbox installed on physical test bed")
             elif install_method == "sandbox":
-                self._do_create_sandbox(ssh, cmds)
+                self._do_create_sandbox(client, cmds)
             else:
                 print("Invalid install method for controller")
                 exit(1)
@@ -218,8 +218,8 @@ class SandboxScenario(scenario.OvsScenario):
 
 
             if install_method == "sandbox":
-                ssh = self.farm_clients(k)
-                ssh.run("\n".join(cmds), stdout=sys.stdout, stderr=sys.stderr)
+                client = self.farm_clients(k)
+                client.run("\n".join(cmds), stdout=sys.stdout, stderr=sys.stderr)
 
             self._delete_sandbox_resource(k, to_delete)
 
@@ -233,9 +233,9 @@ class SandboxScenario(scenario.OvsScenario):
             LOG.info("Start sandbox %s on %s, method: %s" % (
                 name, sandbox["farm"], install_method))
             if install_method == "sandbox":
-                ssh = self.farm_clients(sandbox["farm"])
+                client = self.farm_clients(sandbox["farm"])
                 cmd = "./ovs-sandbox.sh --ovn --start %s" % name
-                ssh.run(cmd, stdout=sys.stdout, stderr=sys.stderr);
+                client.run(cmd, stdout=sys.stdout, stderr=sys.stderr);
 
 
     @atomic.action_timer("sandbox.stop_sandbox")
@@ -248,7 +248,7 @@ class SandboxScenario(scenario.OvsScenario):
             name = sandbox["name"]
             LOG.info("Stop sandbox %s on %s" % (name, sandbox["farm"]))
             if install_method == "sandbox":
-                ssh = self.farm_clients(sandbox["farm"])
+                client = self.farm_clients(sandbox["farm"])
                 cmd = "./ovs-sandbox.sh --ovn %s --stop  %s" % \
                         (graceful, name)
-                ssh.run(cmd, stdout=sys.stdout, stderr=sys.stderr);
+                client.run(cmd, stdout=sys.stdout, stderr=sys.stderr);

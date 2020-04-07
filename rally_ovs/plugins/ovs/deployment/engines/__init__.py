@@ -1,6 +1,6 @@
 
 import os
-from rally.deployment.serverprovider import provider
+from rally_ovs.plugins.ovs.deployment.providers.ovn_sandbox_provider import OvsServer
 
 
 OVS_REPO = "https://github.com/openvswitch/ovs.git"
@@ -20,4 +20,4 @@ def get_script_path(name):
 def get_updated_server(server, **kwargs):
     credentials = server.get_credentials()
     credentials.update(kwargs)
-    return provider.Server.from_credentials(credentials)
+    return OvsServer(server.config, credentials)

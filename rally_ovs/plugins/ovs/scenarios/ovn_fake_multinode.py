@@ -37,12 +37,12 @@ class OvnFakeMultinode(ovn.OvnScenario):
 
     def _get_sandbox_conn(self, sb_name, sb, host_container=None):
         farm = sb["farm"]
-        ssh = self.farm_clients(farm, "ovs-ssh")
-        ssh.set_sandbox(sb_name, self.install_method, host_container)
-        ssh.enable_batch_mode(False)
-        return ssh
+        client = self.farm_clients(farm, "ovs-generic-client")
+        client.set_sandbox(sb_name, self.install_method, host_container)
+        client.enable_batch_mode(False)
+        return client
 
-    def _add_central(self, ssh_conn, node_net, node_net_len, node_ip,
+    def _add_central(self, client_conn, node_net, node_net_len, node_ip,
                      ovn_fake_path, monitor_all=False, cluster_db=False):
         if monitor_all:
             monitor_cmd = "OVN_MONITOR_ALL=yes"
@@ -57,11 +57,11 @@ class OvnFakeMultinode(ovn.OvnScenario):
         cmd = "cd {} && CHASSIS_COUNT=0 GW_COUNT=0 IP_HOST={} IP_CIDR={} IP_START={} {} {} CREATE_FAKE_VMS=no ./ovn_cluster.sh start".format(
             ovn_fake_path, node_net, node_net_len, node_ip, monitor_cmd, cluster_db_cmd
         )
-        ssh_conn.run(cmd)
+        client_conn.run(cmd)
 
         time.sleep(5)
 
-    def _add_chassis(self, ssh_conn, node_net, node_net_len, node_ip, node_name,
+    def _add_chassis(self, client_conn, node_net, node_net_len, node_ip, node_name,
                      ovn_fake_path, monitor_all=False, cluster_db=False):
         invalid_remote = "tcp:0.0.0.1:6642"
         if monitor_all:
@@ -78,9 +78,9 @@ class OvnFakeMultinode(ovn.OvnScenario):
             ovn_fake_path, node_net, node_net_len, node_ip, monitor_cmd, cluster_db_cmd,
             node_name, invalid_remote
         )
-        ssh_conn.run(cmd)
+        client_conn.run(cmd)
 
-    def _connect_chassis(self, ssh_conn, node_name, central_ip, sb_proto,
+    def _connect_chassis(self, client_conn, node_name, central_ip, sb_proto,
                          ovn_fake_path):
         central_ips = [ip.strip() for ip in central_ip.split('-')]
         remote = ",".join(["{}:{}:6642".format(sb_proto, r) for r in central_ips])
@@ -88,7 +88,7 @@ class OvnFakeMultinode(ovn.OvnScenario):
         cmd = "cd {} && ./ovn_cluster.sh set-chassis-ovn-remote {} {}".format(
             ovn_fake_path, node_name, remote
         )
-        ssh_conn.run(cmd)
+        client_conn.run(cmd)
 
     def _wait_chassis(self, sbctl_conn, chassis_name, max_timeout_s):
         for i in range(0, max_timeout_s * 10):
@@ -96,13 +96,13 @@ class OvnFakeMultinode(ovn.OvnScenario):
                 break
             time.sleep(0.1)
 
-    def _del_chassis(self, ssh_conn, node_name, ovn_fake_path):
+    def _del_chassis(self, client_conn, node_name, ovn_fake_path):
         cmd = "cd {} && OVN_BR_CLEANUP=no ./ovn_cluster.sh stop-chassis {}".format(
             ovn_fake_path, node_name
         )
-        ssh_conn.run(cmd)
+        client_conn.run(cmd)
 
-    def _del_central(self, ssh_conn, ovn_fake_path, cluster_db=False):
+    def _del_central(self, client_conn, ovn_fake_path, cluster_db=False):
         if cluster_db:
             cluster_db_cmd = "OVN_DB_CLUSTER=yes"
         else:
@@ -110,37 +110,37 @@ class OvnFakeMultinode(ovn.OvnScenario):
         cmd = "cd {} && CHASSIS_COUNT=0 GW_COUNT=0 OVN_BR_CLEANUP=no {} ./ovn_cluster.sh stop".format(
             ovn_fake_path, cluster_db_cmd
         )
-        ssh_conn.run(cmd)
+        client_conn.run(cmd)
 
-    def _add_chassis_localnet(self, ssh_conn, physnet):
+    def _add_chassis_localnet(self, client_conn, physnet):
         cmd = "ovs-vsctl -- set open_vswitch . external-ids:ovn-bridge-mappings={}:br-ex".format(
             physnet
         )
-        ssh_conn.run(cmd)
+        client_conn.run(cmd)
 
-    def _add_chassis_external_host(self, ssh_conn, ext_host_cidr):
+    def _add_chassis_external_host(self, client_conn, ext_host_cidr):
         gw_ip = self._get_gw_ip(ext_host_cidr, 1)
         host_ip = self._get_gw_ip(ext_host_cidr, 2)
 
-        ssh_conn.enable_batch_mode()
-        ssh_conn.run("ip link add veth0 type veth peer name veth1")
-        ssh_conn.run("ip netns add ext-ns")
-        ssh_conn.run("ip link set netns ext-ns dev veth0")
-        ssh_conn.run("ip netns exec ext-ns ip link set dev veth0 up")
-        ssh_conn.run("ip netns exec ext-ns ip addr add {}/{} dev veth0".format(host_ip, ext_host_cidr.prefixlen))
-        ssh_conn.run("ip netns exec ext-ns ip route add default via {}".format(gw_ip))
-        ssh_conn.run("ip link set dev veth1 up")
-        ssh_conn.run("ovs-vsctl add-port br-ex veth1")
+        client_conn.enable_batch_mode()
+        client_conn.run("ip link add veth0 type veth peer name veth1")
+        client_conn.run("ip netns add ext-ns")
+        client_conn.run("ip link set netns ext-ns dev veth0")
+        client_conn.run("ip netns exec ext-ns ip link set dev veth0 up")
+        client_conn.run("ip netns exec ext-ns ip addr add {}/{} dev veth0".format(host_ip, ext_host_cidr.prefixlen))
+        client_conn.run("ip netns exec ext-ns ip route add default via {}".format(gw_ip))
+        client_conn.run("ip link set dev veth1 up")
+        client_conn.run("ovs-vsctl add-port br-ex veth1")
 
-        ssh_conn.flush()
-        ssh_conn.enable_batch_mode(False)
+        client_conn.flush()
+        client_conn.enable_batch_mode(False)
 
     @scenario.configure(context={})
     @atomic.action_timer("OvnFakeMultinode.add_central_node")
     def add_central_node(self, fake_multinode_args = {}):
-        ssh = self.controller_client("ovs-ssh")
-        ssh.set_sandbox("controller-sandbox", self.install_method)
-        ssh.enable_batch_mode(False)
+        client = self.controller_client("ovs-generic-client")
+        client.set_sandbox("controller-sandbox", self.install_method)
+        client.enable_batch_mode(False)
 
         node_net = fake_multinode_args.get("node_net")
         node_net_len = fake_multinode_args.get("node_net_len")
@@ -149,7 +149,7 @@ class OvnFakeMultinode(ovn.OvnScenario):
         monitor_all = fake_multinode_args.get("ovn_monitor_all")
         cluster_db = fake_multinode_args.get("ovn_cluster_db")
 
-        self._add_central(ssh, node_net, node_net_len, node_ip, ovn_fake_path,
+        self._add_central(client, node_net, node_net_len, node_ip, ovn_fake_path,
                           monitor_all, cluster_db)
 
     @scenario.configure(context={})
@@ -157,7 +157,7 @@ class OvnFakeMultinode(ovn.OvnScenario):
     def add_chassis_node(self, fake_multinode_args = {}):
         farm = fake_multinode_args.get("farm")
         sb = self._get_sandbox(farm)
-        ssh = self._get_sandbox_conn(sb["name"], sb)
+        client = self._get_sandbox_conn(sb["name"], sb)
 
         node_net = fake_multinode_args.get("node_net")
         node_net_len = fake_multinode_args.get("node_net_len")
@@ -167,7 +167,7 @@ class OvnFakeMultinode(ovn.OvnScenario):
         monitor_all = fake_multinode_args.get("ovn_monitor_all")
         cluster_db = fake_multinode_args.get("ovn_cluster_db")
 
-        self._add_chassis(ssh, node_net, node_net_len, node_ip, node_name,
+        self._add_chassis(client, node_net, node_net_len, node_ip, node_name,
                           ovn_fake_path, monitor_all, cluster_db)
 
     @scenario.configure(context={})
@@ -175,13 +175,13 @@ class OvnFakeMultinode(ovn.OvnScenario):
     def connect_chassis_node(self, fake_multinode_args = {}):
         farm = fake_multinode_args.get("farm")
         sb = self._get_sandbox(farm)
-        ssh = self._get_sandbox_conn(sb["name"], sb)
+        client = self._get_sandbox_conn(sb["name"], sb)
 
         central_ip = fake_multinode_args.get("central_ip")
         sb_proto = fake_multinode_args.get("sb_proto", "ssl")
         node_name = sb["host_container"]
         ovn_fake_path = fake_multinode_args.get("cluster_cmd_path")
-        self._connect_chassis(ssh, node_name, central_ip, sb_proto,
+        self._connect_chassis(client, node_name, central_ip, sb_proto,
                               ovn_fake_path)
 
     @scenario.configure(context={})
@@ -203,32 +203,32 @@ class OvnFakeMultinode(ovn.OvnScenario):
     def del_chassis_node(self, fake_multinode_args = {}):
         farm = fake_multinode_args.get("farm")
         sb = self._get_sandbox(farm)
-        ssh = self._get_sandbox_conn(sb["name"], sb)
+        client = self._get_sandbox_conn(sb["name"], sb)
 
         node_name = sb["host_container"]
         ovn_fake_path = fake_multinode_args.get("cluster_cmd_path")
-        self._del_chassis(ssh, node_name, ovn_fake_path)
+        self._del_chassis(client, node_name, ovn_fake_path)
 
     @scenario.configure(context={})
     @atomic.action_timer("OvnFakeMultinode.del_central_node")
     def del_central_node(self, fake_multinode_args = {}):
-        ssh = self.controller_client("ovs-ssh")
-        ssh.set_sandbox("controller-sandbox", self.install_method)
-        ssh.enable_batch_mode(False)
+        client = self.controller_client("ovs-generic-client")
+        client.set_sandbox("controller-sandbox", self.install_method)
+        client.enable_batch_mode(False)
 
         ovn_fake_path = fake_multinode_args.get("cluster_cmd_path")
         cluster_db = fake_multinode_args.get("ovn_cluster_db")
-        self._del_central(ssh, ovn_fake_path, cluster_db)
+        self._del_central(client, ovn_fake_path, cluster_db)
 
     @scenario.configure(context={})
     @atomic.action_timer("OvnFakeMultinode.add_chassis_node_localnet")
     def add_chassis_node_localnet(self, fake_multinode_args = {}):
         farm = fake_multinode_args.get("farm")
         sb = self._get_sandbox(farm)
-        ssh = self._get_sandbox_conn(sb["name"], sb, sb["host_container"])
+        client = self._get_sandbox_conn(sb["name"], sb, sb["host_container"])
 
         physnet = fake_multinode_args.get("physnet", "providernet")
-        self._add_chassis_localnet(ssh, physnet)
+        self._add_chassis_localnet(client, physnet)
 
     @scenario.configure(context={})
     @atomic.action_timer("OvnFakeMultinode.add_chassis_nodes")
@@ -251,10 +251,10 @@ class OvnFakeMultinode(ovn.OvnScenario):
 
             farm = "{}{}".format(node_prefix, index % len(self._sandboxes))
             sb = self._get_sandbox(farm)
-            ssh = self._get_sandbox_conn(sb["name"], sb)
+            client = self._get_sandbox_conn(sb["name"], sb)
             node_name = sb["host_container"]
 
-            self._add_chassis(ssh, node_net, node_net_len, node_ip, node_name,
+            self._add_chassis(client, node_net, node_net_len, node_ip, node_name,
                               ovn_fake_path, monitor_all, cluster_db)
 
     @scenario.configure(context={})
@@ -273,10 +273,10 @@ class OvnFakeMultinode(ovn.OvnScenario):
 
             farm = "{}{}".format(node_prefix, index % len(self._sandboxes))
             sb = self._get_sandbox(farm)
-            ssh = self._get_sandbox_conn(sb["name"], sb)
+            client = self._get_sandbox_conn(sb["name"], sb)
             node_name = sb["host_container"]
 
-            self._connect_chassis(ssh, node_name, central_ip, sb_proto,
+            self._connect_chassis(client, node_name, central_ip, sb_proto,
                                   ovn_fake_path)
 
     @scenario.configure(context={})
@@ -296,7 +296,7 @@ class OvnFakeMultinode(ovn.OvnScenario):
 
             farm = "{}{}".format(node_prefix, index % len(self._sandboxes))
             sb = self._get_sandbox(farm)
-            ssh = self._get_sandbox_conn(sb["name"], sb)
+            client = self._get_sandbox_conn(sb["name"], sb)
             node_name = sb["host_container"]
 
             self._wait_chassis(ovn_sbctl, node_name, max_timeout_s)
@@ -313,12 +313,12 @@ class OvnFakeMultinode(ovn.OvnScenario):
 
             farm = "{}{}".format(node_prefix, index % len(self._sandboxes))
             sb = self._get_sandbox(farm)
-            ssh = self._get_sandbox_conn(sb["name"], sb)
+            client = self._get_sandbox_conn(sb["name"], sb)
 
             ovn_fake_path = fake_multinode_args.get("cluster_cmd_path")
             node_name = sb["host_container"]
 
-            self._del_chassis(ssh, node_name, ovn_fake_path)
+            self._del_chassis(client, node_name, ovn_fake_path)
 
     @scenario.configure(context={})
     @atomic.action_timer("OvnFakeMultinode.add_chassis_nodes_localnet")
@@ -333,9 +333,9 @@ class OvnFakeMultinode(ovn.OvnScenario):
 
             farm = "{}{}".format(node_prefix, index % len(self._sandboxes))
             sb = self._get_sandbox(farm)
-            ssh = self._get_sandbox_conn(sb["name"], sb, sb["host_container"])
+            client = self._get_sandbox_conn(sb["name"], sb, sb["host_container"])
 
-            self._add_chassis_localnet(ssh, physnet)
+            self._add_chassis_localnet(client, physnet)
 
     @scenario.configure(context={})
     @atomic.action_timer("OvnFakeMultinode.add_chassis_external_hosts")
@@ -350,11 +350,11 @@ class OvnFakeMultinode(ovn.OvnScenario):
 
             farm = "{}{}".format(node_prefix, index % len(self._sandboxes))
             sb = self._get_sandbox(farm)
-            ssh = self._get_sandbox_conn(sb["name"], sb, sb["host_container"])
+            client = self._get_sandbox_conn(sb["name"], sb, sb["host_container"])
 
             ext_host_cidr = netaddr.IPNetwork(lnetwork_create_args.get('start_ext_cidr'))
 
-            self._add_chassis_external_host(ssh, ext_host_cidr.next(index))
+            self._add_chassis_external_host(client, ext_host_cidr.next(index))
 
 
 class OvnNorthboundFakeMultinode(OvnFakeMultinode):

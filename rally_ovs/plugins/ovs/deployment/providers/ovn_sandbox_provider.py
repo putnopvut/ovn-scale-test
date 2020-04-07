@@ -13,6 +13,26 @@
 # under the License.
 
 from rally.deployment.serverprovider import provider
+from rally.common import sshutils
+from utils import NCatClient
+
+
+class OvsServer(provider.Server):
+    def __init__(self, config, cred):
+        self.config = config
+        self.host = cred["host"]
+        self.user = cred["user"]
+        self.key = cred.get("key")
+        self.password = cred.get("password")
+        server_type = config.get("server_type", "ssh")
+        self.port = cred.get("port", 22 if server_type == "ssh" else 8000)
+        if server_type == "plaintext":
+            self.client = NCatClient(self.host, self.port)
+        else:
+            self.client = sshutils.SSH(self.user, self.host,
+                                       key_filename=self.key,
+                                       port=self.port,
+                                       password=self.password)
 
 
 @provider.configure(name="OvsSandboxProvider")
@@ -49,6 +69,7 @@ class OvsSandboxProvider(provider.ProviderFactory):
         "type": "object",
         "properties": {
             "type": {"type": "string"},
+            "server_type": {"type": "string"},
             "credentials": {
                 "type": "array",
                 "items": CREDENTIALS_SCHEMA
@@ -58,33 +79,18 @@ class OvsSandboxProvider(provider.ProviderFactory):
         "required": ["credentials"]
     }
 
-
-
     def __init__(self, deployment, config):
         super(OvsSandboxProvider, self).__init__(deployment, config)
         self.credentials = config["credentials"]
-
+        self.config = config
 
     def create_servers(self):
         servers = []
 
         for credential in self.credentials:
-            servers.append(provider.Server(
-                               host=credential["host"],
-                               user=credential["user"],
-                               key=credential.get("key"),
-                               password=credential.get("password"),
-                               port=credential.get("port", 22)))
+            servers.append(OvsServer(self.config, credential))
 
         return servers
 
     def destroy_servers(self):
         pass
-
-
-
-
-
-
-
-

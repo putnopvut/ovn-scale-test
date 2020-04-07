@@ -25,6 +25,7 @@ from rally.deployment.serverprovider import provider
 from rally_ovs.plugins.ovs.deployment.engines import get_updated_server
 from rally_ovs.plugins.ovs.deployment.engines import OVS_USER
 from rally_ovs.plugins.ovs.consts import ResourceType
+from rally_ovs.plugins.ovs.deployment.providers.ovn_sandbox_provider import OvsServer
 
 
 from rally_ovs.plugins.ovs.deployment.sandbox import SandboxEngine
@@ -110,11 +111,11 @@ class OvnSandboxControllerEngine(SandboxEngine):
                         (ovs_controller_cidr, net_dev)
 
         if install_method == "docker":
-            LOG.info("Do not run ssh; deployed by ansible-docker")
+            LOG.info("Do not run client; deployed by ansible-docker")
         elif install_method == "physical":
-            LOG.info("Do not run ssh; deployed on physical test bed")
+            LOG.info("Do not run client; deployed on physical test bed")
         elif install_method == "sandbox":
-            ovs_server.ssh.run(cmd,
+            ovs_server.client.run(cmd,
                             stdout=sys.stdout, stderr=sys.stderr)
         else:
             print("Invalid install method for controller")
@@ -139,17 +140,13 @@ class OvnSandboxControllerEngine(SandboxEngine):
 
         for resource in self.deployment.get_resources():
             if resource["type"] == ResourceType.CREDENTIAL:
-                server = provider.Server.from_credentials(resource.info)
+                server = OvsServer(self.get_provider().config, resource.info)
 
                 cmd = "[ -x ovs-sandbox.sh ] && ./ovs-sandbox.sh --cleanup-all"
 
                 if install_method == "sandbox":
-                    server.ssh.run(cmd,
-                                stdout=sys.stdout, stderr=sys.stderr,
-                                raise_on_error=False)
+                    server.client.run(cmd, stdout=sys.stdout,
+                                      stderr=sys.stderr,
+                                      raise_on_error=False)
 
             self.deployment.delete_resource(resource.id)
-
-
-
-
