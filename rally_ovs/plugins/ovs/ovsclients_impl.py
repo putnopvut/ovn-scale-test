@@ -17,14 +17,14 @@ import itertools
 import pipes
 from io import StringIO
 from rally_ovs.plugins.ovs.ovsclients import *
-from rally_ovs.plugins.ovs.utils import get_ssh_from_credential
+from rally_ovs.plugins.ovs.utils import get_client_connection
 
 @configure("ssh")
 class SshClient(OvsClient):
 
 
     def create_client(self):
-        return get_ssh_from_credential(self.credential)
+        return get_client_connection(self.credential)
 
 
 @configure("ovn-nbctl")
@@ -33,7 +33,7 @@ class OvnNbctl(OvsClient):
 
     class _OvnNbctl(DdCtlMixin):
         def __init__(self, credential):
-            self.ssh = get_ssh_from_credential(credential)
+            self.client = get_client_connection(credential)
             self.context = {}
             self.sandbox = None
             self.batch_mode = False
@@ -84,8 +84,9 @@ class OvnNbctl(OvsClient):
                 cmd = itertools.chain(cmd_prefix, [ovn_cmd], opts, [cmd], args)
                 self.cmds.append(" ".join(cmd))
 
-            self.ssh.run("\n".join(self.cmds),
-                         stdout=stdout, stderr=stderr, raise_on_error=raise_on_error)
+            self.client.run("\n".join(self.cmds),
+                            stdout=stdout, stderr=stderr,
+                            raise_on_error=raise_on_error)
 
             self.cmds = None
 
@@ -109,8 +110,8 @@ class OvnNbctl(OvsClient):
 
                     run_cmds.append(cmd_prefix + " ".join(self.cmds))
 
-            self.ssh.run("\n".join(run_cmds),
-                         stdout=sys.stdout, stderr=sys.stderr)
+            self.client.run("\n".join(run_cmds),
+                            stdout=sys.stdout, stderr=sys.stderr)
 
             self.cmds = None
 
@@ -285,7 +286,7 @@ class OvnNbctl(OvsClient):
 
         def close(self):
             try:
-                self.ssh.close()
+                self.client.close()
             except AttributeError:
                 # Rally's ssh _client attribute can be either
                 # an ssh session or False (boolean). Attempting to close
@@ -330,7 +331,7 @@ class OvnSbctl(OvsClient):
 
     class _OvnSbctl(DdCtlMixin):
         def __init__(self, credential):
-            self.ssh = get_ssh_from_credential(credential)
+            self.client = get_client_connection(credential)
             self.context = {}
             self.sandbox = None
             self.batch_mode = False
@@ -370,7 +371,7 @@ class OvnSbctl(OvsClient):
                 cmd = itertools.chain(cmd_prefix, [self.sbctl_cmd], opts, [cmd], args)
                 self.cmds.append(" ".join(cmd))
 
-            self.ssh.run("\n".join(self.cmds),
+            self.client.run("\n".join(self.cmds),
                          stdout=stdout, stderr=stderr)
 
             self.cmds = None
@@ -393,7 +394,7 @@ class OvnSbctl(OvsClient):
                     else:
                         run_cmds.append("sudo " + self.sbctl_cmd + " ".join(self.cmds))
 
-            self.ssh.run("\n".join(run_cmds),
+            self.client.run("\n".join(run_cmds),
                          stdout=sys.stdout, stderr=sys.stderr)
 
             self.cmds = None
@@ -406,13 +407,13 @@ class OvnSbctl(OvsClient):
 
         def count_igmp_flows(self, lswitch, network_prefix='239'):
             stdout = StringIO()
-            self.ssh.run(
+            self.client.run(
                 self.sbctl_cmd + " list datapath_binding | grep {sw} -B 1 | "
                 "grep uuid | cut -f 2 -d ':'".format(sw=lswitch),
                 stdout=stdout)
             uuid = stdout.getvalue().rstrip()
             stdout = StringIO()
-            self.ssh.run(
+            self.client.run(
                 self.sbctl_cmd + " list logical_flow | grep 'dst == {nw}' -B 1 | "
                 "grep {uuid} -B 1 | wc -l".format(
                 uuid=uuid, nw=network_prefix),
@@ -445,7 +446,7 @@ class OvnSbctl(OvsClient):
 
         def close(self):
             try:
-                self.ssh.close()
+                self.client.close()
             except AttributeError:
                 # Rally's ssh _client attribute can be either
                 # an ssh session or False (boolean). Attempting to close
@@ -453,7 +454,6 @@ class OvnSbctl(OvsClient):
                 # problem if this happens, but we need to catch the
                 # exception so that the test doesn't fail.
                 pass
-
 
     def create_client(self):
 
@@ -466,7 +466,7 @@ class OvsSsh(OvsClient):
 
     class _OvsSsh(object):
         def __init__(self, credential):
-            self.ssh = get_ssh_from_credential(credential)
+            self.client = get_client_connection(credential)
             self.batch_mode = False
             self.cmds = None
 
@@ -493,7 +493,7 @@ class OvsSsh(OvsClient):
             self.flush()
 
         def run_immediate(self, cmd, stdout=sys.stdout, stderr=sys.stderr):
-            self.ssh.run(cmd, stdout)
+            self.client.run(cmd, stdout)
 
         def flush(self):
             if self.cmds == None:
@@ -502,11 +502,11 @@ class OvsSsh(OvsClient):
             cmds = "\n".join(self.cmds)
             self.cmds = None
 
-            self.ssh.run(cmds, stdout=sys.stdout, stderr=sys.stderr)
+            self.client.run(cmds, stdout=sys.stdout, stderr=sys.stderr)
 
         def close(self):
             try:
-                self.ssh.close()
+                self.client.close()
             except AttributeError:
                 # Rally's ssh _client attribute can be either
                 # an ssh session or False (boolean). Attempting to close
@@ -526,7 +526,7 @@ class OvsVsctl(OvsClient):
     class _OvsVsctl(object):
 
         def __init__(self, credential):
-            self.ssh = get_ssh_from_credential(credential)
+            self.client = get_client_connection(credential)
             self.context = {}
             self.batch_mode = False
             self.sandbox = None
@@ -568,7 +568,7 @@ class OvsVsctl(OvsClient):
             if self.batch_mode:
                 return
 
-            self.ssh.run("\n".join(self.cmds), stdout=stdout, stderr=stderr)
+            self.client.run("\n".join(self.cmds), stdout=stdout, stderr=stderr)
 
             self.cmds = None
 
@@ -580,7 +580,7 @@ class OvsVsctl(OvsClient):
                 if self.install_method == "sandbox":
                     self.cmds.insert(0, ". %s/sandbox.rc" % self.sandbox)
 
-            self.ssh.run("\n".join(self.cmds),
+            self.client.run("\n".join(self.cmds),
                          stdout=sys.stdout, stderr=sys.stderr)
 
             self.cmds = None
@@ -601,7 +601,7 @@ class OvsVsctl(OvsClient):
 
         def close(self):
             try:
-                self.ssh.close()
+                self.client.close()
             except AttributeError:
                 # Rally's ssh _client attribute can be either
                 # an ssh session or False (boolean). Attempting to close
@@ -622,7 +622,7 @@ class OvsOfctl(OvsClient):
     class _OvsOfctl(object):
 
         def __init__(self, credential):
-            self.ssh = get_ssh_from_credential(credential)
+            self.client = get_client_connection(credential)
             self.context = {}
             self.sandbox = None
 
@@ -646,7 +646,7 @@ class OvsOfctl(OvsClient):
                 cmd_prefix = ["ovs-ofctl"]
             cmd = itertools.chain(cmd_prefix, opts, [cmd], args)
             cmds.append(" ".join(cmd))
-            self.ssh.run("\n".join(cmds),
+            self.client.run("\n".join(cmds),
                          stdout=stdout, stderr=stderr)
 
         def dump_flows(self, bridge):
@@ -659,7 +659,7 @@ class OvsOfctl(OvsClient):
 
         def close(self):
             try:
-                self.ssh.close()
+                self.client.close()
             except AttributeError:
                 # Rally's ssh _client attribute can be either
                 # an ssh session or False (boolean). Attempting to close
